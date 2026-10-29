@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AeroSense™ Deep Meteorological Predictor | Past & Present Time-Series AI</title>
+  <meta name="description" content="High-precision meteorological time-series predictive engine analyzing past historical atmospheric baseline and present observations to forecast future weather.">
+      
+  <!-- Modern Google Fonts: Inter (Body), Outfit (Headings), JetBrains Mono (Telemetry) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <!-- Lucide Modern Feather Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Chart.js 4.4.2 Visualization Engine -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Header / Navigation Flight Deck -->
+  <header class="app-header">
+    <div class="nav-brand">
+      <div class="brand-icon">
+        <i data-lucide="cloud-lightning"></i>
+      </div>
+      <div class="brand-text">
+        <div class="brand-title">AEROSENSE <span class="badge-ai">PREDICTIVE AI</span></div>
+        <div class="brand-subtitle">Past & Present Time-Series Atmospheric Forecaster</div>
+      </div>
+    </div>
+
+    <div class="nav-actions">
+      <!-- Direct Link to Station Log Analyzer -->
+      <a href="../web_dashboard/index.html" class="btn btn-secondary" title="Switch to Station SD Log Viewer">
+        <i data-lucide="layout-dashboard"></i> Station Viewer
+      </a>
+      <button type="button" id="btn-browse-past" class="btn btn-past" title="Select historical past baseline CSV file">
+        <i data-lucide="history"></i> 1. Ingest Past Data
+      </button>
+      <input type="file" id="file-past-input" accept=".csv,.txt,.log" style="display: none;">
+      
+      <button type="button" id="btn-browse-present" class="btn btn-present" title="Select current present observations CSV file">
+        <i data-lucide="activity"></i> 2. Ingest Present Data
+      </button>
+      <input type="file" id="file-present-input" accept=".csv,.txt,.log" style="display: none;">
+      <button id="btn-open-paste-modal" class="btn btn-secondary">
+        <i data-lucide="clipboard-paste"></i> Paste CSV
+      </button>
+      <button id="btn-live-serial" class="btn btn-live" title="Stream live data from ESP32 via USB Serial">
+        <span class="live-dot"></span>
+        <i data-lucide="radio"></i> Live ESP32 Stream
+      </button>
+      <button id="btn-clear-all" class="btn btn-icon" title="Clear All Datasets">
+        <i data-lucide="trash-2"></i>
+      </button>
+      <button id="btn-print-report" class="btn btn-icon" title="Export Meteorological Audit">
+        <i data-lucide="printer"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- Soft-Moving Sub-Navigation Menu Bar -->
+  <nav class="sub-nav-bar" id="sub-nav">
+    <div class="sub-nav-container">
+      <div class="sub-nav-pill-indicator" id="nav-pill"></div>
+      <button class="sub-nav-btn active" data-target="sec-ingest">
+        <i data-lucide="database"></i> <span>Datasets</span>
+      </button>
+      <button class="sub-nav-btn" data-target="sec-kpi">
+        <i data-lucide="gauge"></i> <span>Atmospheric KPIs</span>
+      </button>
+      <button class="sub-nav-btn" data-target="sec-flowbar">
+        <i data-lucide="layers"></i> <span>Altitude & Ceiling</span>
+      </button>
+      <button class="sub-nav-btn" data-target="sec-timeline">
+        <i data-lucide="clock"></i> <span>24h Timeline</span>
+      </button>
+      <button class="sub-nav-btn" data-target="sec-charts">
+        <i data-lucide="line-chart"></i> <span>Synoptic Curves</span>
+      </button>
+      <button class="sub-nav-btn" data-target="sec-table">
+        <i data-lucide="table"></i> <span>Audit Table</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Main Container -->
+  <main class="main-container">
+
+    <!-- Dual File Ingestion & Data Management Zone -->
+    <section class="ingestion-section" id="sec-ingest">
+      <div class="ingestion-grid">
+
+        <!-- Past Dataset Card -->
+        <div class="dataset-card past-card" id="drop-zone-past">
+          <div class="dataset-card-header">
+            <div class="dataset-icon icon-past">
+              <i data-lucide="calendar"></i>
+            </div>
+            <div class="dataset-meta">
+              <h4>Historical Past Baseline</h4>
+              <p>Reference training observations (previous day/week logs)</p>
+            </div>
+            <span class="dataset-badge" id="badge-past-status">No File Loaded</span>
+          </div>
+          <div class="drop-text-area">
+            <p>Drag & drop past <code>aerosense.csv</code> or <span class="text-link" id="link-browse-past">browse files</span></p>
+            <div class="dataset-stats-row" id="stats-past-row">
+              <span>Records: <strong id="stat-past-count">0</strong></span>
+              <span>Span: <strong id="stat-past-span">--</strong></span>
+              <span>Mean P: <strong id="stat-past-mean-p">--</strong></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Present Dataset Card -->
+        <div class="dataset-card present-card" id="drop-zone-present">
+          <div class="dataset-card-header">
+            <div class="dataset-icon icon-present">
+              <i data-lucide="gauge"></i>
+            </div>
+            <div class="dataset-meta">
+              <h4>Current / Present Observations</h4>
+              <p>Real-time observation window to analyze against past baseline</p>
+            </div>
+            <span class="dataset-badge" id="badge-present-status">No File Loaded</span>
+          </div>
+          <div class="drop-text-area">
+            <p>Drag & drop today's <code>aerosense.csv</code>, <span class="text-link" id="link-browse-present">browse</span>, or connect Live USB</p>
+            <div class="dataset-stats-row" id="stats-present-row">
+              <span>Records: <strong id="stat-present-count">0</strong></span>
+              <span>Current P: <strong id="stat-present-curr-p">--</strong></span>
+              <span>Comp. Alt: <strong id="stat-present-alt">--</strong></span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Quick Continuous Dataset Option -->
+      <div class="continuous-bar">
+        <div class="continuous-left">
+          <i data-lucide="layers"></i>
+          <span>Have a single multi-hour continuous SD card log file?</span>
+        </div>
+        <label for="file-continuous-input" class="btn btn-outline-sm">
+          <i data-lucide="split"></i> Ingest Continuous Log (Auto-Split Past vs Present)
+          <input type="file" id="file-continuous-input" accept=".csv,.txt" style="display: none;">
+        </label>
+      </div>
+    </section>
+
+    <!-- System Diagnostic Banner -->
+    <div id="system-banner" class="status-banner banner-neutral">
+      <div class="banner-left">
+        <span class="pulse-dot"></span>
+        <span id="banner-text"><strong>Awaiting Datasets:</strong> Ingest your historical past log and present observations above, or connect live USB to run deep meteorological forecasting.</span>
+      </div>
+      <div class="banner-right" id="banner-state-indicator">
+        AI Standby
+      </div>
+    </div>
+
+    <!-- Meteorological Key Performance Indicators (KPI Grid) -->
+    <section class="kpi-section" id="sec-kpi">
+      <div class="kpi-grid">
+
+        <!-- KPI 1: Calibrated QNH & Exact Altitude -->
+        <div class="kpi-card highlight-sky">
+          <div class="kpi-top">
+            <span class="kpi-label"><i data-lucide="mountain"></i> Precise Altitude (Compensated)</span>
+            <span class="kpi-sub-badge" id="kpi-qnh-badge">QNH 1013.25</span>
+          </div>
+          <div class="kpi-main-val" id="kpi-alt-val">-- <span class="unit">m</span></div>
+          <div class="kpi-footer-note">
+            <span id="kpi-alt-formula">Hypsometric: Temp-Compensated</span>
+          </div>
+        </div>
+
+        <!-- KPI 2: Absolute Pressure & Past Departure -->
+        <div class="kpi-card highlight-blue">
+          <div class="kpi-top">
+            <span class="kpi-label"><i data-lucide="gauge"></i> Surface Barometric Pressure</span>
+            <span class="kpi-sub-badge" id="kpi-pressure-trend-badge">-- hPa/h</span>
+          </div>
+          <div class="kpi-main-val" id="kpi-press-val">-- <span class="unit">hPa</span></div>
+          <div class="kpi-footer-note">
+            <span id="kpi-baseline-diff">Deviation from Past: --</span>
+          </div>
+        </div>
+
+        <!-- KPI 3: WMO 3-Hour Tendency & Code -->
+        <div class="kpi-card highlight-amber">
+          <div class="kpi-top">
+            <span class="kpi-label"><i data-lucide="trending-down"></i> WMO 3-Hour Tendency (ΔP₃ₕ)</span>
+            <span class="kpi-sub-badge" id="kpi-wmo-code">Code --</span>
+          </div>
+          <div class="kpi-main-val" id="kpi-wmo-val">-- <span class="unit">hPa/3h</span></div>
+          <div class="kpi-footer-note">
+            <span id="kpi-wmo-desc">Standard WMO Code Table 0200</span>
+          </div>
+        </div>
+
+        <!-- KPI 4: Lifting Condensation Level (LCL Cloud Base) -->
+        <div class="kpi-card highlight-emerald">
+          <div class="kpi-top">
+            <span class="kpi-label"><i data-lucide="cloud"></i> Lifting Condensation Level</span>
+            <span class="kpi-sub-badge" id="kpi-dewpoint-badge">Td: -- °C</span>
+          </div>
+          <div class="kpi-main-val" id="kpi-lcl-val">-- <span class="unit">m AGL</span></div>
+          <div class="kpi-footer-note">
+            <span id="kpi-cloud-verdict">Estimated Cloud Base Height</span>
+          </div>
+        </div>
+
+        <!-- KPI 5: Frontal & Storm Risk Index -->
+        <div class="kpi-card highlight-purple">
+          <div class="kpi-top">
+            <span class="kpi-label"><i data-lucide="zap"></i> Convective Rain / Storm Risk</span>
+            <span class="kpi-sub-badge" id="kpi-risk-badge">Low</span>
+          </div>
+          <div class="kpi-main-val" id="kpi-risk-val">-- <span class="unit">%</span></div>
+          <div class="kpi-footer-note">
+            <span id="kpi-risk-desc">Multi-Variable Thermodynamic Model</span>
+          </div>
+        </div>
+
+        <!-- KPI 6: Primary Predictive Verdict -->
+        <div class="kpi-card highlight-indigo">
+          <div class="kpi-top">
+            <span class="kpi-label"><i data-lucide="sparkles"></i> 24h Predictive Verdict</span>
+            <span class="kpi-sub-badge" id="kpi-confidence-badge">Confidence: --%</span>
+          </div>
+          <div class="kpi-main-val verdict-text" id="kpi-verdict-val">Awaiting Data</div>
+          <div class="kpi-footer-note">
+            <span id="kpi-verdict-sub">Time-series trajectory forecast</span>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Atmospheric Stratification Flow Bar -->
+    <section class="flowbar-section" id="sec-flowbar">
+      <div class="section-title-wrap">
+        <i data-lucide="layers"></i>
+        <h3>Atmospheric Stratification & Cloud Condensation Flow Bar</h3>
+      </div>
+      <div class="section-subtitle">
+        Visual hypsometric lapse gradient mapping current station altitude, ground boundary layer, and condensation ceiling
+      </div>
+      <div class="flowbar-track-wrap">
+        <div id="flowbar-pointer" class="flowbar-pointer" style="left: 20%;">
+          <div class="pointer-badge" id="pointer-alt-badge">Station: -- m</div>
+          <div class="pointer-arrow"></div>
+        </div>
+        <div class="flowbar-gradient"></div>
+        <div class="flowbar-labels">
+          <span>0m (Sea Level)</span>
+          <span>1,000m (Surface Layer)</span>
+          <span>2,200m (Rain Generation)</span>
+          <span>3,500m (Free Troposphere)</span>
+          <span>5,000m+</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Interactive Weather Decision Flowchart -->
+    <section class="flowchart-section">
+      <div class="section-title-wrap">
+        <i data-lucide="git-branch"></i>
+        <h3>Synoptic Meteorological Decision Flowchart</h3>
+      </div>
+      <div class="section-subtitle">
+        Continuous algorithmic pipeline: Barometric Baseline → WMO Tendency → Moisture Saturation → AI Future Verdict
+      </div>
+      <div class="flowchart-grid">
+        <div class="flow-step-box">
+          <span class="flow-step-num">STAGE 1</span>
+          <div class="flow-step-title">Barometric Pressure</div>
+          <div class="flow-step-val" id="flow-p-val">-- hPa</div>
+          <p class="flow-step-desc" id="flow-p-desc">Awaiting station telemetry</p>
+          <span class="flow-step-pill pill-info" id="flow-p-pill">Baseline Status</span>
+        </div>
+
+        <div class="flow-step-box">
+          <span class="flow-step-num">STAGE 2</span>
+          <div class="flow-step-title">WMO 3h Tendency</div>
+          <div class="flow-step-val" id="flow-tend-val">-- hPa/3h</div>
+          <p class="flow-step-desc" id="flow-tend-desc">Standard WMO Code Table 0200</p>
+          <span class="flow-step-pill pill-info" id="flow-tend-pill">Rate Status</span>
+        </div>
+
+        <div class="flow-step-box">
+          <span class="flow-step-num">STAGE 3</span>
+          <div class="flow-step-title">Moisture & Cloud Ceiling</div>
+          <div class="flow-step-val" id="flow-lcl-val">LCL: -- m</div>
+          <p class="flow-step-desc" id="flow-lcl-desc">Dew point depression (T - Td)</p>
+          <span class="flow-step-pill pill-info" id="flow-lcl-pill">Condensation Status</span>
+        </div>
+
+        <div class="flow-step-box">
+          <span class="flow-step-num">STAGE 4</span>
+          <div class="flow-step-title">AI Predictive Forecast</div>
+          <div class="flow-step-val" id="flow-pred-val">Standby</div>
+          <p class="flow-step-desc" id="flow-pred-desc">Past vs Present trajectory synthesis</p>
+          <span class="flow-step-pill pill-info" id="flow-pred-pill">Forecast Verdict</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Future Predictive Timeline Horizon (Nowcast & Multi-Hour Forecasts) -->
+    <section class="forecast-timeline-section" id="sec-timeline">
+      <div class="section-header">
+        <div class="section-title-wrap">
+          <i data-lucide="clock"></i>
+          <h3>Predictive Future Weather Timeline (Past $\to$ Present $\to$ Future)</h3>
+        </div>
+        <div class="section-subtitle">
+          Derived from barometric slope ($\Delta P / \Delta t$), 2nd derivative ($d^2P/dt^2$), and diurnal tide harmonic compensation
+        </div>
+      </div>
+
+      <div class="timeline-grid">
+
+        <!-- Horizon 1: Nowcast (Next 1 - 3 Hours) -->
+        <div class="timeline-card" id="card-horizon-1">
+          <div class="horizon-badge">Next 1 - 3 Hours (Nowcast)</div>
+          <div class="horizon-icon" id="horizon-icon-1">
+            <i data-lucide="sun"></i>
+          </div>
+          <div class="horizon-condition" id="horizon-cond-1">--</div>
+          <div class="horizon-metrics">
+            <div class="h-metric">
+              <span class="h-label">Exp. Pressure</span>
+              <span class="h-val" id="h-press-1">-- hPa</span>
+            </div>
+            <div class="h-metric">
+              <span class="h-label">Exp. Temp</span>
+              <span class="h-val" id="h-temp-1">-- °C</span>
+            </div>
+            <div class="h-metric">
+              <span class="h-label">Precip Risk</span>
+              <span class="h-val" id="h-risk-1">-- %</span>
+            </div>
+          </div>
+          <div class="horizon-advisory" id="h-adv-1">
+            Awaiting station observation ingestion.
+          </div>
+        </div>
+
+        <!-- Horizon 2: Near-Term (Next 3 - 6 Hours) -->
+        <div class="timeline-card" id="card-horizon-2">
+          <div class="horizon-badge">Next 3 - 6 Hours (Near-Term)</div>
+          <div class="horizon-icon" id="horizon-icon-2">
+            <i data-lucide="cloud-sun"></i>
+          </div>
+          <div class="horizon-condition" id="horizon-cond-2">--</div>
+          <div class="horizon-metrics">
+            <div class="h-metric">
+              <span class="h-label">Exp. Pressure</span>
+              <span class="h-val" id="h-press-2">-- hPa</span>
+            </div>
+            <div class="h-metric">
+              <span class="h-label">Exp. Temp</span>
+              <span class="h-val" id="h-temp-2">-- °C</span>
+            </div>
+            <div class="h-metric">
+              <span class="h-label">Precip Risk</span>
+              <span class="h-val" id="h-risk-2">-- %</span>
+            </div>
+          </div>
+          <div class="horizon-advisory" id="h-adv-2">
+            Awaiting station observation ingestion.
+          </div>
+        </div>
+
+        <!-- Horizon 3: Mid-Term (Next 6 - 12 Hours) -->
+        <div class="timeline-card" id="card-horizon-3">
+          <div class="horizon-badge">Next 6 - 12 Hours (Mid-Term)</div>
+          <div class="horizon-icon" id="horizon-icon-3">
+            <i data-lucide="cloud"></i>
+          </div>
+          <div class="horizon-condition" id="horizon-cond-3">--</div>
+          <div class="horizon-metrics">
+            <div class="h-metric">
+              <span class="h-label">Exp. Pressure</span>
+              <span class="h-val" id="h-press-3">-- hPa</span>
+            </div>
+            <div class="h-metric">
+              <span class="h-label">Exp. Temp</span>
+              <span class="h-val" id="h-temp-3">-- °C</span>
+            </div>
+            <div class="h-metric">
+              <span class="h-label">Precip Risk</span>
+              <span class="h-val" id="h-risk-3">-- %</span>
+            </div>
+          </div>
+          <div class="horizon-advisory" id="h-adv-3">
+            Awaiting station observation ingestion.
+          </div>
+        </div>
+
+        <!-- Horizon 4: Extended Outlook (Next 12 - 24 Hours) -->
+        <div class="timeline-card" id="card-horizon-4">
+          <div class="horizon-badge">Next 12 - 24 Hours (Synoptic)</div>
+          <div class="horizon-icon" id="horizon-icon-4">
+            <i data-lucide="compass"></i>
+          </div>
+          <div class="horizon-condition" id="horizon-cond-4">--</div>
+          <div class="horizon-metrics">
+            <div class="h-metric">
+              <span class="h-label">Exp. Pressure</span>
+              <span class="h-val" id="h-press-4">-- hPa</span>
+            </div>
+            <div class="h-metric">
+              <span class="h-label">Exp. Temp</span>
+              <span class="h-val" id="h-temp-4">-- °C</span>
+            </div>
+            <div class="h-metric">
+              <span class="h-label">Precip Risk</span>
+              <span class="h-val" id="h-risk-4">-- %</span>
+            </div>
+          </div>
+          <div class="horizon-advisory" id="h-adv-4">
+            Awaiting station observation ingestion.
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- High-Resolution Charts Section -->
+    <section class="charts-section" id="sec-charts">
+      <div class="charts-grid">
+
+        <!-- Chart 1: Dual Synoptic Barograph with Future Projection -->
+        <div class="chart-box full-width">
+          <div class="chart-header">
+            <div>
+              <h4 class="chart-title"><i data-lucide="line-chart"></i> Synoptic Barograph & Future Extrapolation (+24 Hours)</h4>
+              <p class="chart-desc">Historical Past Baseline (Blue) vs Present Observations (Amber) vs Extrapolated Future Forecast (Violet dashed curve)</p>
+            </div>
+            <div class="chart-legend-custom">
+              <span class="legend-item"><span class="legend-dot dot-past"></span> Past Baseline</span>
+              <span class="legend-item"><span class="legend-dot dot-present"></span> Present Observed</span>
+              <span class="legend-item"><span class="legend-dot dot-forecast"></span> Extrapolated Future (+24h)</span>
+            </div>
+          </div>
+          <div class="canvas-container">
+            <canvas id="chart-synoptic"></canvas>
+          </div>
+        </div>
+
+        <!-- Chart 2: Temperature, Dew Point & Cloud Ceiling -->
+        <div class="chart-box">
+          <div class="chart-header">
+            <div>
+              <h4 class="chart-title"><i data-lucide="thermometer"></i> Temperature, Dew Point & Cloud Base (LCL)</h4>
+              <p class="chart-desc">Thermodynamic moisture condensation and cloud base ceiling elevation (m AGL)</p>
+            </div>
+          </div>
+          <div class="canvas-container">
+            <canvas id="chart-thermo"></canvas>
+          </div>
+        </div>
+
+        <!-- Chart 3: WMO Barometric Tendency Derivative Rate -->
+        <div class="chart-box">
+          <div class="chart-header">
+            <div>
+              <h4 class="chart-title"><i data-lucide="gauge-circle"></i> Barometric Rate of Change (ΔP / Δt in hPa/hr)</h4>
+              <p class="chart-desc">Real-time pressure tendency derivative plotted with WMO Storm Front Thresholds</p>
+            </div>
+          </div>
+          <div class="canvas-container">
+            <canvas id="chart-derivative"></canvas>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Deep Atmospheric Science & Diagnostic Audit Section -->
+    <section class="diagnostic-section">
+      <div class="diagnostic-card">
+        <div class="diag-header">
+          <div class="diag-title">
+            <i data-lucide="microscope"></i>
+            <h3>Meteorological Physics & Diagnostic Mathematical Audit</h3>
+          </div>
+          <span class="diag-chip" id="diag-model-chip">Model: WMO 0200 + Hypsometric ISA</span>
+        </div>
+
+        <div class="diag-grid">
+          <!-- Column 1: Altimeter & Hypsometric Formula -->
+          <div class="diag-block">
+            <h5>1. Temperature-Compensated Hypsometric Formulation</h5>
+            <p>Calculated altitude employs the non-standard ambient temperature compensation derived from the hydrostatic equation:</p>
+            <div class="math-box">
+              $$h = \frac{T_{\text{ambient}} + 273.15}{0.0065} \cdot \left[ \left(\frac{P_{\text{QNH}}}{P_{\text{filtered}}}\right)^{0.190263} - 1.0 \right]$$
+            </div>
+            <p class="diag-detail" id="diag-hypsometric-detail">
+              Current sensor ambient temperature and barometric pressure match ISA tropospheric lapse rates without uncompensated density errors.
+            </p>
+          </div>
+
+          <!-- Column 2: WMO Barometric Tendency & Diurnal Tide -->
+          <div class="diag-block">
+            <h5>2. WMO 3-Hour Tendency & Diurnal Solar Tide Correction</h5>
+            <p>Evaluates standardized pressure difference $\Delta P_{3h} = P_0 - P_{-3h}$ with semi-diurnal harmonic extraction ($S_2$ solar tide):</p>
+            <div class="math-box">
+              $$\Delta P_{\text{synoptic}} = \Delta P_{3h} - A_{S2} \cdot \cos\left(2\omega t - \phi_2\right)$$
+            </div>
+            <p class="diag-detail" id="diag-wmo-detail">
+              Prevents false storm detections during normal 10:00 and 16:00 solar atmospheric heating expansion cycles.
+            </p>
+          </div>
+
+          <!-- Column 3: Moisture Physics & LCL Cloud Base -->
+          <div class="diag-block">
+            <h5>3. Psychrometrics & Lifting Condensation Level (LCL)</h5>
+            <p>Saturation vapor pressure $e_s(T)$ and dew point depression dictate cloud base formation elevation:</p>
+            <div class="math-box">
+              $$\text{LCL} \approx 125 \cdot (T - T_d) \text{ meters above ground}$$
+            </div>
+            <p class="diag-detail" id="diag-moisture-detail">
+              Condensation risk escalates as $T \to T_d$ and relative humidity crosses the 80% saturation threshold.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Past vs Present Comparative Telemetry Table -->
+    <section class="table-section" id="sec-table">
+      <div class="table-header">
+        <div class="table-title">
+          <i data-lucide="database"></i>
+          <h3>Comparative Telemetry Records (Past vs Present vs Future Forecast)</h3>
+        </div>
+        <div class="table-controls">
+          <input type="text" id="table-search" placeholder="Search timestamp, pressure, altitude..." class="input-search">
+          <button id="btn-export-csv" class="btn btn-secondary btn-sm">
+            <i data-lucide="download"></i> Export Analyzed CSV
+          </button>
+        </div>
+      </div>
+
+      <div class="table-responsive">
+        <table class="telemetry-table">
+          <thead>
+            <tr>
+              <th>Dataset</th>
+              <th>Time Elapsed</th>
+              <th>Pressure (hPa)</th>
+              <th>Comp. Alt (m)</th>
+              <th>Temp (°C)</th>
+              <th>Dew Point (°C)</th>
+              <th>Cloud Base (m)</th>
+              <th>Tendency (hPa/h)</th>
+              <th>Predicted Verdict</th>
+              <th>Rain Risk (%)</th>
+            </tr>
+          </thead>
+          <tbody id="table-body">
+            <tr>
+              <td colspan="10" class="empty-table-msg">
+                No observations ingested yet. Ingest your past historical baseline and current observations above or stream live via USB.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="table-pagination">
+        <span id="page-info">Showing 0 of 0 records</span>
+        <div class="pagination-buttons">
+          <button id="btn-prev-page" class="btn btn-secondary btn-sm" disabled>Previous</button>
+          <button id="btn-next-page" class="btn btn-secondary btn-sm" disabled>Next</button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Paste CSV Modal Dialog -->
+  <div id="paste-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title">
+          <i data-lucide="clipboard-copy"></i>
+          <h4>Paste Raw Comma-Delimited CSV Logs</h4>
+        </div>
+        <button id="btn-close-modal" class="btn-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-target-selector">
+          <label><strong>Assign Pasted Data to:</strong></label>
+          <div class="radio-group">
+            <label><input type="radio" name="paste-target" value="past"> Historical Past Baseline</label>
+            <label><input type="radio" name="paste-target" value="present" checked> Current / Present Observations</label>
+          </div>
+        </div>
+        <p class="modal-instruction">Paste lines copied from <code>aerosense.csv</code> (e.g. <code>Record,Time_s,Temp_C,Press_hPa,Altitude_m,QNH_hPa</code>):</p>
+        <textarea id="paste-textarea" rows="10" placeholder="1,5,24.50,912.80,920.40,1013.25&#10;2,10,24.52,912.78,920.60,1013.25&#10;..."></textarea>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-cancel-paste" class="btn btn-secondary">Cancel</button>
+        <button id="btn-submit-paste" class="btn btn-primary">
+          <i data-lucide="check"></i> Ingest & Run AI Prediction
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="app-footer">
+    <p>AeroSense™ Precision Meteorology & Atmospheric Prediction Platform • Powered by ESP32, GY-BMP280 & Time-Series Synoptic Science</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

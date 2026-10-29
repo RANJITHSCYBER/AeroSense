@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AeroSense — Intelligent Atmospheric Telemetry & Weather Prediction Dashboard</title>
+  <meta name="description" content="AeroSense real-time atmospheric data analyzer, barometric pressure trend calculator, and predictive rain forecasting platform for ESP32 and BMP280.">
+
+  <!-- Google Fonts: Outfit & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <!-- Chart.js for High-Precision Visualizations -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Leaflet.js for Interactive GPS Flight Map & OpenStreetMap -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Navigation Top Bar -->
+  <header class="navbar">
+    <div class="nav-brand">
+      <div class="brand-icon">
+        <i data-lucide="compass"></i>
+      </div>
+      <div class="brand-text">
+        <div class="brand-title">AEROSENSE <span class="badge-pro">PRO ANALYZER</span></div>
+        <div class="brand-subtitle">Atmospheric Telemetry & Predictive Weather Forecaster</div>
+      </div>
+    </div>
+
+    <div class="nav-actions">
+      <a href="../weather_predictor/index.html" class="btn btn-predictor" title="Open Past & Present Deep Weather Predictor">
+        <i data-lucide="cloud-lightning"></i> Deep Weather Predictor AI
+      </a>
+      <label for="file-input" class="btn btn-primary">
+        <i data-lucide="upload-cloud"></i> Select / Drop SD File
+        <input type="file" id="file-input" accept=".csv,.txt" style="display: none;">
+      </label>
+      <button id="btn-open-paste-modal" class="btn btn-secondary">
+        <i data-lucide="clipboard-paste"></i> Paste CSV Data
+      </button>
+      <button id="btn-live-serial" class="btn btn-live">
+        <span class="live-dot"></span>
+        <i data-lucide="radio"></i> Connect ESP32 (Live USB)
+      </button>
+      <button id="btn-clear-data" class="btn btn-icon" title="Clear / Reset Data">
+        <i data-lucide="trash-2"></i>
+      </button>
+      <button id="btn-export-csv" class="btn btn-icon" title="Export Processed CSV">
+        <i data-lucide="download"></i>
+      </button>
+      <button id="btn-print" class="btn btn-icon" title="Print / Save Report">
+        <i data-lucide="printer"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- Soft-Moving Sub-Navigation Menu Bar -->
+  <nav class="sub-nav-bar" id="sub-nav">
+    <div class="sub-nav-container">
+      <div class="sub-nav-pill-indicator" id="nav-pill"></div>
+      <button class="sub-nav-btn active" data-target="sec-metrics">
+        <i data-lucide="gauge"></i> <span>Live Telemetry</span>
+      </button>
+      <button class="sub-nav-btn" data-target="sec-internet">
+        <i data-lucide="globe"></i> <span>Internet QNH Sync</span>
+      </button>
+      <button class="sub-nav-btn" data-target="sec-flowbar">
+        <i data-lucide="layers"></i> <span>Altitude Stratification</span>
+      </button>
+      <button class="sub-nav-btn" data-target="sec-flowchart">
+        <i data-lucide="git-branch"></i> <span>Predictive Verdict</span>
+      </button>
+      <button class="sub-nav-btn" data-target="sec-charts">
+        <i data-lucide="line-chart"></i> <span>Atmospheric Curves</span>
+      </button>
+      <button class="sub-nav-btn" data-target="sec-map">
+        <i data-lucide="map-pin"></i> <span>GPS Flight Map</span>
+      </button>
+      <button class="sub-nav-btn" data-target="sec-table">
+        <i data-lucide="table"></i> <span>Flight Logs Table</span>
+      </button>
+    </div>
+  </nav>
+
+  <main class="dashboard-container">
+    <!-- Dropzone / Drag-and-Drop Area -->
+    <section id="drop-zone" class="drop-zone-card">
+      <div class="drop-zone-content">
+        <div class="drop-icon">
+          <i data-lucide="file-up"></i>
+        </div>
+        <div class="drop-text">
+          <h3>Drop your AeroSense SD Card CSV file here</h3>
+          <p>Drag & drop <code>aerosense.csv</code> from your SD card or <span class="text-link" id="browse-link">browse your files</span></p>
+        </div>
+        <div class="drop-pill">
+          <i data-lucide="check-circle-2"></i> Auto-parses Altitude, Pressure, Temperature, Humidity & Rain Risk
+        </div>
+      </div>
+    </section>
+
+    <!-- System Status Banner -->
+    <div id="status-banner" class="status-banner banner-info">
+      <div class="banner-left">
+        <span class="pulse-dot"></span>
+        <span id="banner-text"><strong>Awaiting File Drop:</strong> Please drag and drop your <code>aerosense.csv</code> SD card file to analyze real sensor data.</span>
+      </div>
+      <div class="banner-right" id="banner-records-count">
+        No Data Loaded
+      </div>
+    </div>
+
+    <!-- Top Key Metrics Cards -->
+    <section class="metrics-grid" id="sec-metrics">
+      <!-- Altitude Card -->
+      <div class="metric-card card-altitude">
+        <div class="card-header">
+          <span class="card-label">PEAK ALTITUDE</span>
+          <div class="card-icon"><i data-lucide="mountain"></i></div>
+        </div>
+        <div class="card-value" id="val-altitude">-- <span class="unit">m</span></div>
+        <div class="card-trend" id="sub-altitude">
+          <span>Ground: -- m</span> • <span>Gain: -- m</span>
+        </div>
+        <div class="card-bar-bg"><div id="bar-altitude" class="card-bar-fill" style="width: 0%;"></div></div>
+      </div>
+
+      <!-- Barometric Pressure Card -->
+      <div class="metric-card card-pressure">
+        <div class="card-header">
+          <span class="card-label">SEA-LEVEL BARO</span>
+          <div class="card-icon"><i data-lucide="gauge"></i></div>
+        </div>
+        <div class="card-value" id="val-pressure">-- <span class="unit">hPa</span></div>
+        <div class="card-trend" id="sub-pressure">
+          <span id="pressure-trend-icon"><i data-lucide="minus"></i></span>
+          <span id="pressure-trend-text">Tendency: -- hPa/h</span>
+        </div>
+        <div class="card-bar-bg"><div id="bar-pressure" class="card-bar-fill" style="width: 0%;"></div></div>
+      </div>
+
+      <!-- Temperature Card -->
+      <div class="metric-card card-temp">
+        <div class="card-header">
+          <span class="card-label">TEMPERATURE RANGE</span>
+          <div class="card-icon"><i data-lucide="thermometer"></i></div>
+        </div>
+        <div class="card-value" id="val-temp">-- <span class="unit">°C</span></div>
+        <div class="card-trend" id="sub-temp">
+          <span>Min: -- °C</span> • <span>Max: -- °C</span>
+        </div>
+        <div class="card-bar-bg"><div id="bar-temp" class="card-bar-fill" style="width: 50%;"></div></div>
+      </div>
+
+      <!-- Humidity & Dew Point Card -->
+      <div class="metric-card card-humidity">
+        <div class="card-header">
+          <span class="card-label">HUMIDITY & DEW POINT</span>
+          <div class="card-icon"><i data-lucide="droplets"></i></div>
+        </div>
+        <div class="card-value" id="val-humidity">-- <span class="unit">%</span></div>
+        <div class="card-trend" id="sub-humidity">
+          <span>Dew Point: -- °C</span> • <span>Cloud Base: -- m</span>
+        </div>
+        <div class="card-bar-bg"><div id="bar-humidity" class="card-bar-fill" style="width: 40%;"></div></div>
+      </div>
+
+      <!-- Rain Risk / Zambretti Card -->
+      <div class="metric-card card-rain">
+        <div class="card-header">
+          <span class="card-label">RAIN PROBABILITY</span>
+          <div class="card-icon" id="rain-forecast-icon"><i data-lucide="cloud-sun"></i></div>
+        </div>
+        <div class="card-value" id="val-rain">-- <span class="unit">%</span></div>
+        <div class="card-trend" id="sub-rain">
+          <span class="forecast-badge" id="badge-forecast">Awaiting Data</span>
+        </div>
+        <div class="card-bar-bg"><div id="bar-rain" class="card-bar-fill rain-progress" style="width: 0%;"></div></div>
+      </div>
+
+      <!-- GPS Geodetic Location Card -->
+      <div class="metric-card card-gps">
+        <div class="card-header">
+          <span class="card-label">NEO-6M GPS GEODETIC FIX</span>
+          <div class="card-icon" id="gps-metric-icon"><i data-lucide="satellite"></i></div>
+        </div>
+        <div class="card-value" id="val-gps-coords">--.------, --.------</div>
+        <div class="card-trend" id="sub-gps">
+          <span id="gps-sats-badge"><i data-lucide="radio"></i> 0 Sats</span> • <span id="gps-speed-badge">Speed: 0.0 km/h</span>
+        </div>
+        <div class="card-bar-bg"><div id="bar-gps" class="card-bar-fill gps-bar-fill" style="width: 0%;"></div></div>
+      </div>
+    </section>
+
+    <!-- Internet Meteorological Resource & True QNH Altimeter Calibration -->
+    <section class="internet-section" id="sec-internet">
+      <div class="section-title-wrap">
+        <div class="title-with-icon">
+          <i data-lucide="globe"></i>
+          <h2>Internet Meteorological Resource & Altimeter QNH Calibrator</h2>
+        </div>
+        <div class="section-actions-wrap">
+          <span class="badge-internet" id="badge-internet-status"><i data-lucide="wifi"></i> Auto-Detecting Location...</span>
+          <button id="btn-refresh-internet" class="btn btn-secondary btn-sm" title="Refresh Live Internet Weather">
+            <i data-lucide="refresh-cw"></i> Refresh
+          </button>
+        </div>
+      </div>
+
+      <div class="internet-grid">
+        <!-- Live Open-Meteo Synoptic Resource Card -->
+        <div class="internet-card net-weather-card">
+          <div class="net-card-header">
+            <div class="net-station-info">
+              <span class="net-station-label">REGIONAL STATION REPORT (OPEN-METEO)</span>
+              <h3 id="net-location-name">Auto-Detecting Location...</h3>
+              <div class="net-coords-line" id="net-coords-text">Lat: -- • Lon: -- • Elev: -- m</div>
+            </div>
+            <div class="net-weather-badge" id="net-weather-icon-wrap">
+              <i data-lucide="cloud-sun"></i>
+            </div>
+          </div>
+
+          <div class="net-metrics-row">
+            <div class="net-metric-box">
+              <span class="net-box-label">Mean Sea-Level QNH</span>
+              <span class="net-box-val highlight-cyan" id="net-qnh-val">-- <small>hPa</small></span>
+              <span class="net-box-sub">True Aviation Altimeter Setting</span>
+            </div>
+            <div class="net-metric-box">
+              <span class="net-box-label">Ground Elevation</span>
+              <span class="net-box-val highlight-emerald" id="net-elev-val">-- <small>m</small></span>
+              <span class="net-box-sub">Topographic Ground Truth</span>
+            </div>
+            <div class="net-metric-box">
+              <span class="net-box-label">Surface Pressure</span>
+              <span class="net-box-val" id="net-surface-press">-- <small>hPa</small></span>
+              <span class="net-box-sub">Barometric Reference</span>
+            </div>
+            <div class="net-metric-box">
+              <span class="net-box-label">Outdoor Temp / RH</span>
+              <span class="net-box-val" id="net-temp-rh">--°C / --%</span>
+              <span class="net-box-sub" id="net-condition-desc">Atmospheric Conditions</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 1-Click Hardware Calibration & Error Elimination Card -->
+        <div class="internet-card net-cal-card">
+          <div class="net-card-header">
+            <div>
+              <span class="net-station-label">PRECISION ALTIMETER CALIBRATION ENGINE</span>
+              <h3>Hardware QNH Synchronization</h3>
+            </div>
+            <span class="cal-status-pill" id="cal-sync-pill">Ready to Calibrate</span>
+          </div>
+
+          <div class="cal-comparison-box">
+            <div class="cal-compare-col">
+              <span class="compare-title">Current Setting</span>
+              <span class="compare-val" id="cal-current-qnh">1013.25 hPa</span>
+              <span class="compare-desc">Standard ISA Default</span>
+            </div>
+            <div class="cal-compare-arrow">
+              <i data-lucide="arrow-right"></i>
+            </div>
+            <div class="cal-compare-col">
+              <span class="compare-title">True Internet QNH</span>
+              <span class="compare-val text-success" id="cal-target-qnh">-- hPa</span>
+              <span class="compare-desc">Local Meteorological Baseline</span>
+            </div>
+            <div class="cal-compare-col">
+              <span class="compare-title">Altitude Drift Correction</span>
+              <span class="compare-val text-warning" id="cal-error-delta">-- m</span>
+              <span class="compare-desc">Eliminates barometric error</span>
+            </div>
+          </div>
+
+          <div class="cal-action-row">
+            <button id="btn-sync-qnh-hardware" class="btn btn-primary btn-pulse" disabled>
+              <i data-lucide="send"></i> 1-Click Sync QNH to ESP32 Flash (USB)
+            </button>
+            <div class="cal-sync-hint" id="cal-sync-hint">
+              Connect ESP32 via USB Serial to calibrate altitude in real time.
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Atmospheric Altitude & Pressure Flow Bar (Vertical & Horizontal Atmospheric Stratification) -->
+    <section class="flowbar-section" id="sec-flowbar">
+      <div class="section-title-wrap">
+        <div class="title-with-icon">
+          <i data-lucide="layers"></i>
+          <h2>Tropospheric Flow Bar & Altitude Pressure Stratification</h2>
+        </div>
+        <span class="badge-info">Atmospheric Layer Mapping (ISA Hypsometric Model)</span>
+      </div>
+
+      <div class="flowbar-container">
+        <!-- Visual Flow Bar Representation -->
+        <div class="flowbar-track">
+          <div class="layer-segment seg-space">
+            <span class="layer-title">High Altitude Troposphere</span>
+            <span class="layer-meta">> 2500 m | &lt; 750 hPa</span>
+          </div>
+          <div class="layer-segment seg-inversion">
+            <span class="layer-title">Mid Cloud & Condensation Level (LCL)</span>
+            <span class="layer-meta">1200 m - 2500 m | 850 - 750 hPa</span>
+          </div>
+          <div class="layer-segment seg-rain-zone">
+            <span class="layer-title">Precipitation & Rain Generation Band</span>
+            <span class="layer-meta">500 m - 1200 m | 950 - 850 hPa</span>
+          </div>
+          <div class="layer-segment seg-boundary">
+            <span class="layer-title">Planetary Boundary Layer & Surface</span>
+            <span class="layer-meta">0 m - 500 m | 1013 - 950 hPa</span>
+          </div>
+
+          <!-- Dynamic Active Pointer Marker -->
+          <div id="flowbar-pointer" class="flowbar-marker" style="left: 15%;">
+            <div class="marker-flag">
+              <span id="marker-alt">0 m</span>
+              <span id="marker-press">1013.2 hPa</span>
+            </div>
+            <div class="marker-pin"></div>
+          </div>
+        </div>
+
+        <div class="flowbar-legend">
+          <div class="legend-item"><span class="color-dot dot-surface"></span> Surface Layer (0-500m)</div>
+          <div class="legend-item"><span class="color-dot dot-rain"></span> Rain & Cloud Zone (500-1200m)</div>
+          <div class="legend-item"><span class="color-dot dot-mid"></span> Cloud Base / Inversion (1200-2500m)</div>
+          <div class="legend-item"><span class="color-dot dot-high"></span> Free Atmosphere (>2500m)</div>
+        </div>
+      </div>
+    </section>
+
+
+
+    <!-- Weather State Transition Flowchart -->
+    <section class="flowchart-section" id="sec-flowchart">
+      <div class="section-title-wrap">
+        <div class="title-with-icon">
+          <i data-lucide="git-branch"></i>
+          <h2>Predictive Weather Forecasting Decision Flowchart</h2>
+        </div>
+        <span class="badge-info">Automated Zambretti & Barometric Drop Engine</span>
+      </div>
+
+      <div class="flowchart-card">
+        <div class="flow-steps-grid">
+          <!-- Step 1: Input -->
+          <div class="flow-node node-active" id="fn-baro">
+            <div class="node-icon"><i data-lucide="gauge"></i></div>
+            <div class="node-title">1. Barometric QNH</div>
+            <div class="node-desc" id="fn-baro-desc">Current: 1013.2 hPa</div>
+            <div class="node-status">Continuous Sampling</div>
+          </div>
+
+          <div class="flow-arrow"><i data-lucide="arrow-right"></i></div>
+
+          <!-- Step 2: Rate of Change -->
+          <div class="flow-node" id="fn-trend">
+            <div class="node-icon"><i data-lucide="activity"></i></div>
+            <div class="node-title">2. Tendency (dp/dt)</div>
+            <div class="node-desc" id="fn-trend-desc">Rate: 0.00 hPa/hr</div>
+            <div class="node-status" id="fn-trend-badge">Evaluating Slope</div>
+          </div>
+
+          <div class="flow-arrow"><i data-lucide="arrow-right"></i></div>
+
+          <!-- Step 3: Vapor & Saturation -->
+          <div class="flow-node" id="fn-dew">
+            <div class="node-icon"><i data-lucide="cloud-rain"></i></div>
+            <div class="node-title">3. Moisture & LCL</div>
+            <div class="node-desc" id="fn-dew-desc">RH: --% | Td: --°C</div>
+            <div class="node-status" id="fn-dew-badge">Lapse Saturation</div>
+          </div>
+
+          <div class="flow-arrow"><i data-lucide="arrow-right"></i></div>
+
+          <!-- Step 4: Zambretti Classification -->
+          <div class="flow-node" id="fn-forecast">
+            <div class="node-icon"><i data-lucide="sun-medium"></i></div>
+            <div class="node-title">4. Rain Risk Verdict</div>
+            <div class="node-desc" id="fn-forecast-desc">Status: Standby</div>
+            <div class="node-status" id="fn-forecast-badge">Predicting Ahead</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Interactive Charts Grid (4 Core High-Definition Visualizations) -->
+    <section class="charts-grid" id="sec-charts">
+      <!-- Chart 1: Altitude Profile vs Time -->
+      <div class="chart-card">
+        <div class="chart-header">
+          <div class="chart-title">
+            <i data-lucide="trending-up"></i>
+            <span>Altitude Elevation Profile vs Time</span>
+          </div>
+          <span class="chart-pill">Elevation (m)</span>
+        </div>
+        <div class="chart-canvas-container">
+          <canvas id="chart-altitude"></canvas>
+        </div>
+      </div>
+
+      <!-- Chart 2: Barometric Pressure & Weather Warning Thresholds -->
+      <div class="chart-card">
+        <div class="chart-header">
+          <div class="chart-title">
+            <i data-lucide="gauge"></i>
+            <span>Barometric Pressure & Rain Alert Thresholds</span>
+          </div>
+          <span class="chart-pill">Pressure (hPa)</span>
+        </div>
+        <div class="chart-canvas-container">
+          <canvas id="chart-pressure"></canvas>
+        </div>
+      </div>
+
+      <!-- Chart 3: Temperature & Humidity Correlation -->
+      <div class="chart-card">
+        <div class="chart-header">
+          <div class="chart-title">
+            <i data-lucide="thermometer-snowflake"></i>
+            <span>Temperature & Relative Humidity Dual Correlation</span>
+          </div>
+          <span class="chart-pill">Temp (°C) / RH (%)</span>
+        </div>
+        <div class="chart-canvas-container">
+          <canvas id="chart-temphum"></canvas>
+        </div>
+      </div>
+
+      <!-- Chart 4: Atmospheric Pressure vs Altitude Hypsometric Lapse -->
+      <div class="chart-card">
+        <div class="chart-header">
+          <div class="chart-title">
+            <i data-lucide="scatter-chart"></i>
+            <span>Atmospheric Pressure vs. Altitude Hypsometric Curve</span>
+          </div>
+          <span class="chart-pill">Lapse Profile</span>
+        </div>
+        <div class="chart-canvas-container">
+          <canvas id="chart-lapse"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- NEO-6M GPS Geodetic Map & Flight Path Visualization -->
+    <section class="map-section" id="sec-map">
+      <div class="map-card-container">
+        <div class="map-header">
+          <div class="map-title-wrap">
+            <div class="map-title-icon"><i data-lucide="map-pin"></i></div>
+            <div>
+              <h3>NEO-6M GPS Geodetic Tracking & Flight Path Logs</h3>
+              <p class="map-subtitle">Live device coordinates, satellite telemetry, and historical mission trajectory</p>
+            </div>
+          </div>
+          <div class="map-badges">
+            <span id="badge-gps-status" class="badge-gps-status searching"><i data-lucide="loader-2" class="spin"></i> GPS Acquiring Fix</span>
+            <span id="badge-gps-sats" class="badge-sats"><i data-lucide="satellite"></i> 0 Sats</span>
+          </div>
+        </div>
+
+        <div class="map-layout">
+          <!-- Left Map Canvas -->
+          <div class="map-canvas-wrapper">
+            <div id="gps-map" class="leaflet-map-canvas"></div>
+            <div class="map-overlay-controls">
+              <button id="btn-recenter-map" class="map-ctrl-btn" title="Center Device Location"><i data-lucide="crosshair"></i> Recenter</button>
+              <button id="btn-fit-bounds" class="map-ctrl-btn" title="Fit Entire Recorded Path"><i data-lucide="maximize-2"></i> Fit Route</button>
+              <button id="btn-clear-track" class="map-ctrl-btn" title="Reset Flight Track"><i data-lucide="refresh-cw"></i> Reset View</button>
+            </div>
+            <div class="map-device-badge" id="map-live-marker-info">
+              <span class="live-dot-green"></span>
+              <span id="map-marker-text">Device Standby: Awaiting GPS coordinates</span>
+            </div>
+          </div>
+
+          <!-- Right Telemetry Sidebar -->
+          <div class="map-sidebar">
+            <div class="map-sidebar-card">
+              <h4><i data-lucide="navigation"></i> Device Position</h4>
+              <div class="coord-display">
+                <div class="coord-item">
+                  <span class="coord-label">LATITUDE</span>
+                  <span class="coord-val" id="map-lat">--.------°</span>
+                </div>
+                <div class="coord-item">
+                  <span class="coord-label">LONGITUDE</span>
+                  <span class="coord-val" id="map-lon">--.------°</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="map-sidebar-card">
+              <h4><i data-lucide="gauge"></i> Velocity & Motion</h4>
+              <div class="sidebar-stats-grid">
+                <div class="sidebar-stat">
+                  <span class="stat-num" id="map-speed">0.0</span>
+                  <span class="stat-unit">km/h Speed</span>
+                </div>
+                <div class="sidebar-stat">
+                  <span class="stat-num" id="map-knots">0.0</span>
+                  <span class="stat-unit">Knots</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="map-sidebar-card">
+              <h4><i data-lucide="mountain"></i> Dual Altitude Comparison</h4>
+              <div class="alt-compare-row">
+                <div class="alt-compare-box">
+                  <span class="stat-sublabel">Barometric (BMP280)</span>
+                  <div class="stat-val-alt" id="map-baro-alt">-- m</div>
+                </div>
+                <div class="compare-divider">vs</div>
+                <div class="alt-compare-box">
+                  <span class="stat-sublabel">Hypsometric QNH</span>
+                  <div class="stat-val-alt" id="map-qnh-alt">-- m</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="map-sidebar-card">
+              <h4><i data-lucide="history"></i> Logged Waypoints</h4>
+              <div class="sidebar-stats-grid">
+                <div class="sidebar-stat">
+                  <span class="stat-num" id="map-pts-count">0</span>
+                  <span class="stat-unit">GPS Logs</span>
+                </div>
+                <div class="sidebar-stat">
+                  <span class="stat-num" id="map-distance">0.00</span>
+                  <span class="stat-unit">km Path</span>
+                </div>
+              </div>
+              <div class="last-fix-text" id="map-last-fix">Status: Awaiting GPS coordinates</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Comprehensive Filterable Data Table -->
+    <section class="table-section" id="sec-table">
+      <div class="section-title-wrap">
+        <div class="title-with-icon">
+          <i data-lucide="table"></i>
+          <h2>AeroSense High-Density Telemetry Log Record Browser</h2>
+        </div>
+        <div class="table-controls">
+          <input type="text" id="table-search" placeholder="Search logs (e.g. rain, alt, temp, gps)..." class="input-search">
+          <select id="filter-condition" class="select-filter">
+            <option value="all">All Weather States</option>
+            <option value="gps">GPS Fix Logs Only</option>
+            <option value="rain">Rain & Storm Warnings Only</option>
+            <option value="clear">Fair & Clear Weather</option>
+            <option value="high-alt">High Altitude (> 500m)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="table-wrapper">
+        <table id="telemetry-table" class="data-table">
+          <thead>
+            <tr>
+              <th># Record</th>
+              <th>Time (s)</th>
+              <th>Altitude (m)</th>
+              <th>Pressure (hPa)</th>
+              <th>Temp (°C)</th>
+              <th>Humidity (%)</th>
+              <th>Latitude</th>
+              <th>Longitude</th>
+              <th>Speed (km/h)</th>
+              <th>Sats</th>
+              <th>Forecast Prediction</th>
+              <th>Rain Risk (%)</th>
+              <th>Map Action</th>
+            </tr>
+          </thead>
+          <tbody id="table-body">
+            <tr>
+              <td colspan="13" class="empty-table-msg">No data loaded yet. Drop your SD card CSV file above, paste CSV data, or connect via live USB serial.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="table-pagination">
+        <span id="page-info">Showing 0 of 0 records</span>
+        <div class="pagination-buttons">
+          <button id="btn-prev-page" class="btn btn-secondary btn-sm" disabled>Previous</button>
+          <button id="btn-next-page" class="btn btn-secondary btn-sm" disabled>Next</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Paste CSV Modal Dialog -->
+  <div id="paste-modal" class="modal-overlay">
+    <div class="modal-window">
+      <div class="modal-header">
+        <div class="modal-title"><i data-lucide="clipboard-copy"></i> Paste Raw AeroSense CSV Data</div>
+        <button id="btn-close-modal" class="btn-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-hint">Paste the raw CSV rows from <code>aerosense.csv</code> on your SD card below:</p>
+        <textarea id="paste-textarea" rows="12" placeholder="Record,Timestamp_s,Temp_C,Pressure_hPa,Altitude_m,Humidity_pct,Trend_hPa_h,Forecast,Rain_Probability_pct
+1,5,24.50,1012.30,120.50,68.0,0.00,Fair Weather,25
+2,10,24.45,1011.80,124.00,69.5,-0.60,Partly Cloudy,35..."></textarea>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-cancel-paste" class="btn btn-secondary">Cancel</button>
+        <button id="btn-submit-paste" class="btn btn-primary"><i data-lucide="check"></i> Parse & Analyze Data</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="dashboard-footer">
+    <div class="footer-left">
+      <strong>AeroSense™</strong> Micro-Meteorological Aviation & Ground Forecast System • ESP32 & GY-BMP280
+    </div>
+    <div class="footer-right">
+      <span>PlatformIO ESP32 Dev Project</span> • <span>Version 2.0 Pro</span>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+  <script>
+    // Initialize Lucide Icons
+    lucide.createIcons();
+  </script>
+</body>
+</html>
